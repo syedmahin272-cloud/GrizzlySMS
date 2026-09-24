@@ -18,7 +18,7 @@ app = Flask(__name__)
 maintenance_mode = False
 user_api_keys = {}
 
-# Checker API Config[cite: 1]
+# Checker API Config
 CHECKER_URL = "http://api.agbots.site:8080/check/"
 CHECKER_AUTH = "user8354"
 CHECKER_API_KEY = "SIGUzg7Xf7euGs8B"
@@ -36,17 +36,17 @@ def check_tg_number(phone_number):
         phone_number = "+" + phone_number
         
     payload = {
-        "auth": CHECKER_AUTH,[cite: 1]
-        "api_key": CHECKER_API_KEY,[cite: 1]
-        "phone_numbers": [phone_number][cite: 1]
+        "auth": CHECKER_AUTH,
+        "api_key": CHECKER_API_KEY,
+        "phone_numbers": [phone_number]
     }
     
     try:
-        response = requests.get(CHECKER_URL, json=payload, timeout=60)[cite: 1]
-        if response.status_code == 200:[cite: 1]
-            data = response.json()[cite: 1]
-            if str(data.get("status")) == "200":[cite: 1]
-                result_obj = data.get("result_obj", {})[cite: 1]
+        response = requests.get(CHECKER_URL, json=payload, timeout=60)
+        if response.status_code == 200:
+            data = response.json()
+            if str(data.get("status")) == "200":
+                result_obj = data.get("result_obj", {})
                 status = str(result_obj.get(phone_number, "unknown")).lower()
                 return STATUS_EMOJIS.get(status, "❓")
     except Exception:
@@ -66,10 +66,10 @@ def wait_for_otp(chat_id, api_key, activation_id, phone_number):
             if response_text.startswith("STATUS_OK"):
                 otp = response_text.split(":")[1]
                 
-                text = f"🇨🇴 Telegram {phone_number}"[cite: 2]
+                text = f"🇨🇴 Telegram {phone_number}"
                 
                 markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton(text=f"{otp}", copy_text=CopyTextButton(text=otp)))[cite: 2]
+                markup.add(InlineKeyboardButton(text=f"{otp}", copy_text=CopyTextButton(text=otp)))
                 
                 bot.send_message(chat_id, text, reply_markup=markup)
                 return
