@@ -9,6 +9,7 @@ import os
 # Bot Config
 BOT_TOKEN = "8867616150:AAHKNNb2hzfEu473o5iY4CcK3B9QX5hv9hs"
 ADMIN_ID = 7266067201
+WEBHOOK_URL = "https://grizzlysms-8ex5.onrender.com"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -65,11 +66,9 @@ def wait_for_otp(chat_id, api_key, activation_id, phone_number):
             if response_text.startswith("STATUS_OK"):
                 otp = response_text.split(":")[1]
                 
-                # Ekdom chobir moto design
                 text = f"🇨🇴 Telegram {phone_number}"
                 
                 markup = InlineKeyboardMarkup()
-                # Bot API 7.0+ er CopyTextButton diye direct auto copy hobe
                 markup.add(InlineKeyboardButton(text=f"{otp}", copy_text=CopyTextButton(text=otp)))
                 
                 bot.send_message(chat_id, text, reply_markup=markup)
@@ -171,12 +170,8 @@ if __name__ == "__main__":
     bot.remove_webhook()
     time.sleep(1)
     
-    # Render automatically RENDER_EXTERNAL_URL variable set kore dey
-    # Tai url auto-set hobe
-    render_url = os.environ.get("RENDER_EXTERNAL_URL")
-    if render_url:
-        bot.set_webhook(url=f"{render_url}/{BOT_TOKEN}")
-        print(f"Webhook set successfully: {render_url}")
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+    print(f"Webhook set successfully to {WEBHOOK_URL}")
     
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
