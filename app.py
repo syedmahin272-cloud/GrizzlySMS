@@ -7,7 +7,7 @@ from flask import Flask, request
 import os
 
 # Bot Config
-BOT_TOKEN = "8867616150:AAHKNNb2hzfEu473o5iY4CcK3B9QX5hv9hs"
+BOT_TOKEN = "8867616150:AAFVpSMqqiBzyQXs1KbYdUWD_bx8LUCPdX8"
 ADMIN_ID = 7266067201
 WEBHOOK_URL = "https://grizzlysms-8ex5.onrender.com"
 
