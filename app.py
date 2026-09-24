@@ -6,7 +6,7 @@ import time
 from flask import Flask, request
 import os
 
-# Bot Config
+# Bot Config (Notun Token dewa hoyeche)
 BOT_TOKEN = "8668990603:AAHMkDqp_NwpuhVRrFnI6qYHIr2HoiB2NuE"
 ADMIN_ID = 7266067201
 WEBHOOK_URL = "https://grizzlysms-8ex5.onrender.com"
@@ -170,7 +170,8 @@ if __name__ == "__main__":
     bot.remove_webhook()
     time.sleep(1)
     
-    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+    # drop_pending_updates add kora hoyeche jate stuck howa msg clear hoye jay
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}", drop_pending_updates=True)
     print(f"Webhook set successfully to {WEBHOOK_URL}")
     
     port = int(os.environ.get("PORT", 5000))
