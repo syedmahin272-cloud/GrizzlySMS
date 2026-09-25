@@ -7,7 +7,7 @@ from flask import Flask
 import os
 
 # Bot Config
-BOT_TOKEN = "8867616150:AAHroEr-ibS58JBg4vzIN8OYpmZlE4KiCOI"
+BOT_TOKEN = "8668990603:AAHMkDqp_NwpuhVRrFnI6qYHIr2HoiB2NuE"
 ADMIN_ID = 7266067201
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -17,6 +17,7 @@ app = Flask(__name__)
 maintenance_mode = False
 user_api_keys = {}
 user_active_orders = {} 
+search_flags = {} # Infinite search control korar jonno
 
 # Checker API Config
 CHECKER_URL = "http://api.agbots.site:8080/check/"
@@ -231,9 +232,9 @@ def buy_handler(message):
         return
         
     msg = bot.send_message(message.chat.id, "Koyta Fresh number kinte chao? (Jemon: 1, 5, 10)")
-    bot.register_next_step_handler(msg, process_buy_amount, api_key)
+    bot.register_next_step_handler(msg, process_buy_amount_init, api_key)
 
-# ----------------- CALL BACKS & PROCESSING -----------------
+# ----------------- CALL BACKS & AUTO GRABBER -----------------
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancelall")
 def cancel_all_callback(call):
@@ -300,7 +301,15 @@ def cancel_order_callback(call):
     except Exception:
         bot.answer_callback_query(call.id, "API er sathe connect kora jayni.", show_alert=True)
 
-def process_buy_amount(message, api_key):
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("stopsearch_"))
+def stop_search_callback(call):
+    search_id = call.data.split("_")[1]
+    search_flags[search_id] = False
+    bot.answer_callback_query(call.id, "🛑 Search stop kora hocche...")
+
+
+def process_buy_amount_init(message, api_key):
     if not message.text.isdigit():
         bot.send_message(message.chat.id, "Sothik number dewa hoyni. Abar try koro.")
         return
@@ -314,19 +323,31 @@ def process_buy_amount(message, api_key):
         bot.send_message(message.chat.id, "Auto-grab mode e eksathe max 10 ta number order kora jabe. 10 ta processing hocche...")
         amount = 10
         
-    user_id = message.from_user.id
+    # Generate unique ID for this search session
+    search_id = f"{message.chat.id}{int(time.time())}"
+    search_flags[search_id] = True
+    
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
+    
+    text = f"🛒 **Tomar Order List:**\n\n"
+    msg = bot.send_message(message.chat.id, text + "🔍 Fresh Number khujchi... ⏳", parse_mode="Markdown", reply_markup=markup)
+    
+    # Thread e chaliye dilam jate bot hang na hoy
+    threading.Thread(target=auto_grab_task, args=(message.from_user.id, message.chat.id, api_key, amount, msg, text, search_id)).start()
+
+
+def auto_grab_task(user_id, chat_id, api_key, amount, msg, base_text, search_id):
     if user_id not in user_active_orders:
         user_active_orders[user_id] = {}
         
-    text = f"🛒 **Tomar Order List:**\n\n"
-    msg = bot.send_message(message.chat.id, text + "🔍 Fresh Number khujchi... ⏳", parse_mode="Markdown")
-    
     buy_url = f"https://api.grizzlysms.com/stubs/handler_api.php?api_key={api_key}&action=getNumber&service=tg&country=33&maxPrice=0.12"
     
     for i in range(amount):
-        found_fresh = False
+        attempt = 0
         
-        for attempt in range(10):
+        while search_flags.get(search_id, False):
+            attempt += 1
             try:
                 res = requests.get(buy_url, timeout=30)
                 response_text = res.text
@@ -339,40 +360,53 @@ def process_buy_amount(message, api_key):
                     emoji_status = check_tg_number(phone_number)
                     
                     if "✅ Fresh" in emoji_status:
-                        text += f"{i+1}. `{phone_number}` {emoji_status}\n"
+                        base_text += f"{i+1}. `{phone_number}` {emoji_status}\n"
                         user_active_orders[user_id][activation_id] = phone_number
                         
-                        bot.edit_message_text(text + f"\n⏳ Baki gula khujchi... ({i+1}/{amount})", chat_id=message.chat.id, message_id=msg.message_id, parse_mode="Markdown")
-                        threading.Thread(target=wait_for_otp, args=(message.chat.id, user_id, api_key, activation_id, phone_number)).start()
+                        markup = InlineKeyboardMarkup()
+                        markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
                         
-                        found_fresh = True
-                        break 
+                        bot.edit_message_text(base_text + f"\n⏳ Baki gula khujchi... ({i+1}/{amount})", chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown", reply_markup=markup)
+                        threading.Thread(target=wait_for_otp, args=(chat_id, user_id, api_key, activation_id, phone_number)).start()
+                        
+                        break # Ei slot er kaj sesh, porer number khujbe
                     else:
                         cancel_url = f"https://api.grizzlysms.com/stubs/handler_api.php?api_key={api_key}&action=setStatus&status=8&id={activation_id}"
                         requests.get(cancel_url, timeout=5)
                         
-                        temp_text = text + f"\n♻️ `{phone_number}` ({emoji_status}), Auto Cancel kora holo.\n🔍 Notun khujchi... (Attempt {attempt+1})"
-                        bot.edit_message_text(temp_text, chat_id=message.chat.id, message_id=msg.message_id, parse_mode="Markdown")
-                        time.sleep(2) 
+                        temp_text = base_text + f"\n♻️ `{phone_number}` ({emoji_status}), Auto Cancel.\n🔍 Notun khujchi... (Attempt {attempt})"
+                        
+                        markup = InlineKeyboardMarkup()
+                        markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
+                        
+                        bot.edit_message_text(temp_text, chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown", reply_markup=markup)
+                        time.sleep(2)
                         
                 else:
-                    text += f"{i+1}. ❌ Failed (`{response_text}`)\n"
-                    bot.edit_message_text(text + f"\n⏳ Baki gula asche... ({i+1}/{amount})", chat_id=message.chat.id, message_id=msg.message_id, parse_mode="Markdown")
-                    
-                    if response_text in ["NO_BALANCE", "NO_NUMBERS", "BAD_KEY"]:
-                        text += "\n⚠️ API Error er karone khonja stop kora holo."
+                    # Kono FATAL Error ashle ekbare search stop kore dibe (jemon: BAD_KEY, NO_KEY, NO_BALANCE)
+                    if response_text in ["NO_BALANCE", "BAD_KEY", "NO_KEY"]:
+                        base_text += f"\n⚠️ API Error: `{response_text}`. Khonja stop kora holo."
+                        search_flags[search_id] = False
                         break
-                    break
+                    elif response_text == "NO_NUMBERS":
+                        # Number sesh hoye gele 5 sec wait kore abar try korbe
+                        temp_text = base_text + f"\n⚠️ Ekhon kono number nei. Wait kore abar try korchi... (Attempt {attempt})"
+                        markup = InlineKeyboardMarkup()
+                        markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
+                        bot.edit_message_text(temp_text, chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown", reply_markup=markup)
+                        time.sleep(5)
+                    else:
+                        base_text += f"{i+1}. ❌ Failed (`{response_text}`)\n"
+                        break
                         
             except Exception:
-                text += f"{i+1}. ⚠️ Connection Error\n"
-                break
+                time.sleep(3) # Connection error thakle 3 sec wait korbe
                 
-        if not found_fresh and not text.endswith("stop kora holo."):
-             text += f"{i+1}. ❌ 10 bar try koreo kono Fresh number paini.\n"
-             bot.edit_message_text(text + f"\n⏳ Baki gula asche... ({i+1}/{amount})", chat_id=message.chat.id, message_id=msg.message_id, parse_mode="Markdown")
-             
-    bot.edit_message_text(text + "\n✅ **Order Complete!**\nManage/Cancel korte menu theke `🟢 Active Numbers` e tap koro.", chat_id=message.chat.id, message_id=msg.message_id, parse_mode="Markdown")
+        # Jodi loop ta user ba bot off kore dey, tahole baki slot ar khujbe na
+        if not search_flags.get(search_id, False):
+            break
+            
+    bot.edit_message_text(base_text + "\n✅ **Order Process Complete / Stopped!**\nManage/Cancel korte menu theke `🟢 Active Numbers` e tap koro.", chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown")
 
 # --- Render Dummy Server ---
 @app.route('/')
