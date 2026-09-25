@@ -7,7 +7,7 @@ from flask import Flask
 import os
 
 # Bot Config
-BOT_TOKEN = "8668990603:AAHMkDqp_NwpuhVRrFnI6qYHIr2HoiB2NuE"
+BOT_TOKEN = "8867616150:AAHroEr-ibS58JBg4vzIN8OYpmZlE4KiCOI"
 ADMIN_ID = 7266067201
 
 bot = telebot.TeleBot(BOT_TOKEN)
