@@ -8,7 +8,7 @@ import os
 
 # Bot Config
 BOT_TOKEN = "8867616150:AAGIVDL7vsNYIuXJ2p6VlbO9Clo0pvj00xA"
-ADMIN_ID = 7266067201
+ADMIN_ID = 72660672019
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -17,7 +17,7 @@ app = Flask(__name__)
 maintenance_mode = False
 user_api_keys = {}
 user_active_orders = {} 
-search_flags = {} # Infinite search control korar jonno
+search_flags = {} 
 
 # Checker API Config
 CHECKER_URL = "http://api.agbots.site:8080/check/"
@@ -323,7 +323,6 @@ def process_buy_amount_init(message, api_key):
         bot.send_message(message.chat.id, "Auto-grab mode e eksathe max 10 ta number order kora jabe. 10 ta processing hocche...")
         amount = 10
         
-    # Generate unique ID for this search session
     search_id = f"{message.chat.id}{int(time.time())}"
     search_flags[search_id] = True
     
@@ -333,7 +332,6 @@ def process_buy_amount_init(message, api_key):
     text = f"🛒 **Tomar Order List:**\n\n"
     msg = bot.send_message(message.chat.id, text + "🔍 Fresh Number khujchi... ⏳", parse_mode="Markdown", reply_markup=markup)
     
-    # Thread e chaliye dilam jate bot hang na hoy
     threading.Thread(target=auto_grab_task, args=(message.from_user.id, message.chat.id, api_key, amount, msg, text, search_id)).start()
 
 
@@ -369,10 +367,17 @@ def auto_grab_task(user_id, chat_id, api_key, amount, msg, base_text, search_id)
                         bot.edit_message_text(base_text + f"\n⏳ Baki gula khujchi... ({i+1}/{amount})", chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown", reply_markup=markup)
                         threading.Thread(target=wait_for_otp, args=(chat_id, user_id, api_key, activation_id, phone_number)).start()
                         
-                        break # Ei slot er kaj sesh, porer number khujbe
+                        break 
                     else:
+                        # ⚠️ EKHANE 2.5 SECOND ER DELAY ADD KORA HOYECHE ⚠️
+                        # Jate API server number ta database e properly save korar time pay
+                        time.sleep(2.5) 
+
                         cancel_url = f"https://api.grizzlysms.com/stubs/handler_api.php?api_key={api_key}&action=setStatus&status=8&id={activation_id}"
-                        requests.get(cancel_url, timeout=5)
+                        try:
+                            requests.get(cancel_url, timeout=5)
+                        except:
+                            pass
                         
                         temp_text = base_text + f"\n♻️ `{phone_number}` ({emoji_status}), Auto Cancel.\n🔍 Notun khujchi... (Attempt {attempt})"
                         
@@ -380,16 +385,16 @@ def auto_grab_task(user_id, chat_id, api_key, amount, msg, base_text, search_id)
                         markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
                         
                         bot.edit_message_text(temp_text, chat_id=chat_id, message_id=msg.message_id, parse_mode="Markdown", reply_markup=markup)
-                        time.sleep(2)
+                        
+                        # API rate limit erate porer bar number khujar age aro 1 sec wait
+                        time.sleep(1) 
                         
                 else:
-                    # Kono FATAL Error ashle ekbare search stop kore dibe (jemon: BAD_KEY, NO_KEY, NO_BALANCE)
                     if response_text in ["NO_BALANCE", "BAD_KEY", "NO_KEY"]:
                         base_text += f"\n⚠️ API Error: `{response_text}`. Khonja stop kora holo."
                         search_flags[search_id] = False
                         break
                     elif response_text == "NO_NUMBERS":
-                        # Number sesh hoye gele 5 sec wait kore abar try korbe
                         temp_text = base_text + f"\n⚠️ Ekhon kono number nei. Wait kore abar try korchi... (Attempt {attempt})"
                         markup = InlineKeyboardMarkup()
                         markup.add(InlineKeyboardButton(text="Cancel Search ❌", callback_data=f"stopsearch_{search_id}"))
@@ -400,9 +405,8 @@ def auto_grab_task(user_id, chat_id, api_key, amount, msg, base_text, search_id)
                         break
                         
             except Exception:
-                time.sleep(3) # Connection error thakle 3 sec wait korbe
+                time.sleep(3) 
                 
-        # Jodi loop ta user ba bot off kore dey, tahole baki slot ar khujbe na
         if not search_flags.get(search_id, False):
             break
             
